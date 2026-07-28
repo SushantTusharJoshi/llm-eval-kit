@@ -45,10 +45,12 @@ packages = ["src/llm_eval_kit"]
 [tool.ruff]
 target-version = "py310"
 line-length = 120
+
+[tool.ruff.lint]
 select = ["E", "F", "W", "I", "UP", "B", "SIM"]
 ignore = ["E501"]
 
-[tool.ruff.isort]
+[tool.ruff.lint.isort]
 known-first-party = ["llm_eval_kit"]
 
 [tool.pytest.ini_options]

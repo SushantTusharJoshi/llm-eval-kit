@@ -1,7 +1,5 @@
 """Tests for YAML/JSON suite loader."""
 
-import json
-
 import pytest
 import yaml
 
@@ -58,6 +56,5 @@ class TestLoadErrors:
     def test_missing_required_fields(self, tmp_path):
         path = tmp_path / "incomplete.yaml"
         path.write_text(yaml.dump({"examples": [{"input": "test"}]}))
-        with pytest.raises(Exception):
-            suite = load_suite(path)
-            _ = suite.examples[0].expected
+        with pytest.raises((ValueError, TypeError)):
+            load_suite(path)

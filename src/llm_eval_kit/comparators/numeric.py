@@ -35,13 +35,12 @@ class NumericComparator:
 
         diff = abs(actual_num - expected_num)
 
-        if self._abs_tol is not None:
-            if diff <= self._abs_tol:
-                return CompareResult(
-                    passed=True,
-                    score=max(0.0, 1.0 - diff / max(self._abs_tol, 1e-10)),
-                    detail=f"{actual_num} within abs_tol={self._abs_tol} of {expected_num}",
-                )
+        if self._abs_tol is not None and diff <= self._abs_tol:
+            return CompareResult(
+                passed=True,
+                score=max(0.0, 1.0 - diff / max(self._abs_tol, 1e-10)),
+                detail=f"{actual_num} within abs_tol={self._abs_tol} of {expected_num}",
+            )
 
         if self._rel_tol is not None and expected_num != 0:
             rel_diff = diff / abs(expected_num)

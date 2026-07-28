@@ -1,8 +1,5 @@
 """Shared test fixtures for llm-eval-kit."""
 
-import tempfile
-from pathlib import Path
-
 import pytest
 import yaml
 
