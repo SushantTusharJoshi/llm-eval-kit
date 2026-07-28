@@ -1,0 +1,27 @@
+name: json-output-validation
+description: Ensures LLM outputs valid JSON with required structure
+
+examples:
+  - input: "Generate a user profile as JSON"
+    expected: '{"name": "Alice", "age": 30, "email": "alice@example.com"}'
+    comparator: cosine
+    threshold: 0.5
+    validators:
+      - type: json
+      - type: json_keys
+        keys: ["name", "age", "email"]
+      - type: length
+        min_length: 20
+        max_length: 500
+
+  - input: "Return an error message"
+    expected: "Error: invalid input"
+    comparator: exact
+    case_sensitive: false
+    validators:
+      - type: regex
+        pattern: "^Error:"
+      - type: length
+        min_length: 5
+
+pass_rate: 1.0

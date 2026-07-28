@@ -1,0 +1,16 @@
+name: rag-confidence
+description: Check retrieval confidence for RAG pipeline context chunks
+
+retrieval_examples:
+  - query: "How do I reset my password?"
+    context_chunks:
+      - "To reset your password, go to Settings > Security > Reset Password"
+      - "Click the 'Forgot Password' link on the login page"
+    threshold: 0.6
+
+  - query: "What are the pricing plans?"
+    context_chunks:
+      - "We offer three plans: Starter ($9/mo), Pro ($29/mo), Enterprise (custom)"
+      - "All plans include unlimited users and 24/7 support"
+      - "Annual billing saves 20% on any plan"
+    threshold: 0.5

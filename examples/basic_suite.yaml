@@ -1,0 +1,24 @@
+name: basic-qa
+description: Simple Q&A evaluation with mixed comparators
+
+examples:
+  - input: "What is 2+2?"
+    expected: "4"
+    comparator: exact
+
+  - input: "What is the capital of France?"
+    expected: "Paris"
+    comparator: exact
+    case_sensitive: false
+
+  - input: "Estimate the value of pi"
+    expected: "3.14159"
+    comparator: numeric
+    abs_tol: 0.01
+
+  - input: "Explain what Python is"
+    expected: "Python is a high-level programming language"
+    comparator: cosine
+    threshold: 0.7
+
+pass_rate: 0.75
