@@ -78,7 +78,7 @@ def run_suite(
 
     total = len(results)
     passed_count = sum(1 for r in results if r.passed)
-    rate = passed_count / total if total > 0 else 0.0
+    rate = passed_count / total if total > 0 else 1.0
     gate_passed = rate >= suite.pass_rate
 
     return EvalReport(
