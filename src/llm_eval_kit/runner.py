@@ -16,6 +16,12 @@ def run_suite(
     results: list[ExampleResult] = []
 
     for example in suite.examples:
+        # Apply suite-level defaults for fields not explicitly set on the example
+        if "comparator" not in example.model_fields_set:
+            example.comparator = suite.default_comparator
+        if "threshold" not in example.model_fields_set:
+            example.threshold = suite.default_threshold
+
         actual = provider.generate(example.input)
 
         comparator = get_comparator(example, embedder)
