@@ -6,10 +6,10 @@ from llm_eval_kit.comparators.numeric import NumericComparator
 from llm_eval_kit.config import GoldenExample
 from llm_eval_kit.providers.base import Embedder
 
-_BUILTIN = {"exact", "numeric", "cosine"}
 
-
-def get_comparator(example: GoldenExample, embedder: Embedder | None = None):
+def get_comparator(
+    example: GoldenExample, embedder: Embedder | None = None,
+) -> ExactComparator | NumericComparator | CosineComparator:
     name = example.comparator
 
     if name == "exact":
@@ -29,7 +29,7 @@ def get_comparator(example: GoldenExample, embedder: Embedder | None = None):
             raise ValueError("Cosine comparator requires an Embedder instance")
         return CosineComparator(embedder, threshold=example.threshold)
 
-    raise ValueError(f"Unknown comparator '{name}'. Available: {sorted(_BUILTIN)}")
+    raise ValueError(f"Unknown comparator '{name}'. Available: cosine, exact, numeric")
 
 
 __all__ = [
