@@ -1,0 +1,37 @@
+# Bedrock Guardrails suite (ApplyGuardrail). Nightly and manual only.
+# Skipped unless the repo variables AWS_ROLE_ARN and BEDROCK_GUARDRAIL_ID are set.
+name: Guardrails suite
+
+on:
+  schedule:
+    - cron: "17 6 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  guardrails:
+    if: ${{ vars.AWS_ROLE_ARN != '' && vars.BEDROCK_GUARDRAIL_ID != '' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      id-token: write # only this job assumes the AWS role
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.12"
+      - uses: aws-actions/configure-aws-credentials@45666896f5d8e0f10ae255413f3a4cdd03bdc8f5 # v6.3.1
+        with:
+          role-to-assume: ${{ vars.AWS_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION || 'us-east-1' }}
+      - run: pip install ".[bedrock]"
+      - name: Run guardrail suite
+        env:
+          BEDROCK_GUARDRAIL_ID: ${{ vars.BEDROCK_GUARDRAIL_ID }}
+          BEDROCK_GUARDRAIL_VERSION: ${{ vars.BEDROCK_GUARDRAIL_VERSION || '1' }}
+        run: llm-eval-kit --mock examples/guardrail_suite.yaml --report reports/guardrails.json -v

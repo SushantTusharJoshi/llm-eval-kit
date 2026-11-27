@@ -6,6 +6,7 @@ with clear error messages instead of crashing mid-eval.
 
 import hashlib
 import re
+from typing import Literal
 
 from pydantic import BaseModel, Field, field_validator
 
@@ -50,6 +51,12 @@ class GoldenExample(BaseModel):
     normalize_whitespace: bool = False
     validators: list[ValidatorConfig] = Field(default_factory=list)
     tags: list[str] = Field(default_factory=list)
+    # Regression gate: a critical case must pass on every run, no tolerance.
+    # Set it directly, or set check_type to one of the suite's critical_check_types.
+    critical: bool | None = None
+    check_type: str | None = None
+    # LLM judge (comparator: judge): the rubric the judge scores against.
+    rubric: str | None = None
 
 
 def example_id(example: GoldenExample) -> str:
@@ -68,6 +75,35 @@ class RetrievalExample(BaseModel):
     threshold: float = 0.7
 
 
+class RegressionTolerance(BaseModel):
+    """Allowed drop versus the baseline for non-critical quality metrics (0.05 = 5 points)."""
+
+    pass_rate_drop: float = Field(default=0.05, ge=0.0, le=1.0)
+    mean_score_drop: float = Field(default=0.05, ge=0.0, le=1.0)
+
+
+class JudgeConfig(BaseModel):
+    """The judge model. Kept separate from the model under test."""
+
+    provider: str
+    model: str | None = None
+    base_url: str | None = None
+    region: str | None = None
+    temperature: float = Field(default=0.0, ge=0.0)
+    max_tokens: int = Field(default=1024, gt=0)
+    pass_threshold: float = Field(default=0.7, ge=0.0, le=1.0)
+    rubric: str | None = None  # default rubric when a case has none
+
+
+class GuardrailExample(BaseModel):
+    """Text sent to Bedrock ApplyGuardrail, with the expected action."""
+
+    id: str
+    text: str
+    source: Literal["INPUT", "OUTPUT"] = "INPUT"
+    expect: Literal["intervened", "none"]
+
+
 class EvalSuite(BaseModel):
     """Top-level eval suite loaded from YAML or JSON."""
 
@@ -83,3 +119,14 @@ class EvalSuite(BaseModel):
     system: str | None = None
     max_tokens: int = Field(default=512, gt=0)
     temperature: float = Field(default=0.0, ge=0.0)
+    critical_check_types: list[str] = Field(default_factory=lambda: ["security", "schema", "logic"])
+    regression: RegressionTolerance = Field(default_factory=RegressionTolerance)
+    judge: JudgeConfig | None = None
+    guardrail_examples: list[GuardrailExample] = Field(default_factory=list)
+
+
+def is_critical(example: GoldenExample, suite: EvalSuite) -> bool:
+    """Explicit ``critical`` wins; otherwise critical when check_type is in the suite's critical list."""
+    if example.critical is not None:
+        return example.critical
+    return example.check_type is not None and example.check_type in suite.critical_check_types

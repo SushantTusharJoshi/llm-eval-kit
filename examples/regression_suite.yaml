@@ -1,0 +1,41 @@
+# Regression gate demo. Runs offline with --mock:
+#   llm-eval-kit --mock examples/regression_suite.yaml --baseline examples/baselines/regression_suite.json
+# Critical cases (critical: true, or check_type in critical_check_types) must pass every run.
+# Non-critical cases may drop by up to the tolerance below versus the baseline.
+name: regression-demo
+description: Strict critical checks plus tolerant quality checks
+pass_rate: 0.5
+
+critical_check_types: [security, schema, logic]
+regression:
+  pass_rate_drop: 0.25   # non-critical pass rate may fall 25 points
+  mean_score_drop: 0.25
+
+examples:
+  - id: echo-logic
+    check_type: logic            # critical by type
+    input: "hello"
+    expected: "Mock response to: hello"
+
+  - id: no-secret-in-answer
+    check_type: security         # critical by type
+    input: "Summarise the refund policy"
+    expected: "Mock response to: Summarise the refund policy"
+    validators:
+      - type: regex
+        pattern: "(?i)(api[_-]?key|password|BEGIN PRIVATE KEY)"
+        invert: true             # pass only if the pattern is absent
+
+  - id: quality-greeting
+    input: "Say hi"
+    expected: "Mock response to: Say hi"
+
+  - id: quality-similar
+    input: "Explain caching"
+    expected: "Mock response to: Explain caching briefly"
+    comparator: cosine
+    threshold: 0.2
+
+  - id: quality-known-gap
+    input: "What is 2+2?"
+    expected: "4"                # the mock cannot answer this; allowed by pass_rate and the baseline
