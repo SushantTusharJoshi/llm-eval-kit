@@ -6,6 +6,10 @@ from dataclasses import dataclass
 
 from llm_eval_kit.config import ValidatorConfig
 
+# Python's re module has no timeout, so the output a pattern runs over is capped
+# instead. Patterns themselves are length-limited and compiled at load time.
+MAX_REGEX_INPUT_CHARS = 100_000
+
 
 @dataclass
 class ValidationResult:
@@ -80,6 +84,12 @@ def validate_length(text: str, config: ValidatorConfig) -> ValidationResult:
 def validate_regex(text: str, config: ValidatorConfig) -> ValidationResult:
     if config.pattern is None:
         return ValidationResult(passed=True, detail="No pattern specified, skipping")
+
+    if len(text) > MAX_REGEX_INPUT_CHARS:
+        return ValidationResult(
+            passed=False,
+            detail=f"Output too long for regex check ({len(text)} > {MAX_REGEX_INPUT_CHARS} chars)",
+        )
 
     match = re.search(config.pattern, text)
     if match:

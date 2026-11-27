@@ -16,3 +16,5 @@ htmlcov/
 .coverage
 *.so
 .DS_Store
+.llm-eval-cache/
+reports/

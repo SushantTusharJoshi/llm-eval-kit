@@ -6,6 +6,9 @@ on:
   pull_request:
     branches: [main]
 
+permissions:
+  contents: read
+
 jobs:
   test:
     runs-on: ubuntu-latest
@@ -14,21 +17,20 @@ jobs:
         python-version: ["3.10", "3.11", "3.12"]
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
       - name: Set up Python ${{ matrix.python-version }}
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version: ${{ matrix.python-version }}
 
       - name: Install dependencies
-        run: pip install -e ".[dev]"
+        run: pip install -e ".[dev,bedrock]"
 
       - name: Lint with ruff
         run: ruff check src/ tests/
 
-      - name: Run tests
-        run: pytest --tb=short -q
-
-      - name: Run tests with coverage
-        run: pytest --cov=llm_eval_kit --cov-report=term-missing
+      - name: Run tests with coverage (live tests are deselected)
+        run: pytest --tb=short --cov=llm_eval_kit --cov-report=term-missing

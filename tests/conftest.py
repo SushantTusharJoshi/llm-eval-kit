@@ -3,6 +3,8 @@
 import pytest
 import yaml
 
+from llm_eval_kit.providers.base import Completion, LLMProvider
+
 
 @pytest.fixture
 def tmp_path_factory_custom(tmp_path):
@@ -49,3 +51,31 @@ def sample_suite_json(tmp_path):
     path = tmp_path / "suite.json"
     path.write_text(json.dumps(suite))
     return path
+
+
+
+class StubProvider(LLMProvider):
+    """New-style provider that reports token counts. Pretends to be Groq gpt-oss-120b so prices apply."""
+
+    name = "groq"
+    model = "openai/gpt-oss-120b"
+
+    def __init__(self, responses=None, input_tokens=1000, output_tokens=500):
+        self.responses = responses or {}
+        self.input_tokens = input_tokens
+        self.output_tokens = output_tokens
+        self.calls = []
+
+    def generate(self, prompt):
+        return self.complete(prompt).text
+
+    def complete(self, prompt, *, system=None, max_tokens=512, temperature=0.0):
+        self.calls.append({"prompt": prompt, "system": system, "max_tokens": max_tokens})
+        return Completion(
+            text=self.responses.get(prompt, f"stub: {prompt}"),
+            model=self.model,
+            provider=self.name,
+            input_tokens=self.input_tokens,
+            output_tokens=self.output_tokens,
+            latency_ms=12.5,
+        )

@@ -1,19 +1,46 @@
-"""Eval runner — orchestrates provider calls, comparisons, and validation."""
+"""Eval runner: orchestrates provider calls, comparisons, and validation."""
 
+from llm_eval_kit.calls import ModelCaller
 from llm_eval_kit.comparators import get_comparator
-from llm_eval_kit.config import EvalSuite
-from llm_eval_kit.providers.base import Embedder, LLMProvider
+from llm_eval_kit.config import EvalSuite, GoldenExample, example_id
+from llm_eval_kit.providers.base import Embedder, LLMProvider, ProviderError
+from llm_eval_kit.reliability import BudgetExceeded
 from llm_eval_kit.report import EvalReport, ExampleResult, RetrievalExampleResult
 from llm_eval_kit.retrieval import check_retrieval
+from llm_eval_kit.security import redact
 from llm_eval_kit.validators import run_validators
+
+
+def _error_result(example: GoldenExample, detail: str, error: str) -> ExampleResult:
+    return ExampleResult(
+        input=example.input,
+        expected=example.expected,
+        actual="",
+        comparator=example.comparator,
+        passed=False,
+        score=0.0,
+        detail=detail,
+        tags=example.tags,
+        id=example_id(example),
+        error=error,
+    )
 
 
 def run_suite(
     suite: EvalSuite,
     provider: LLMProvider,
     embedder: Embedder | None = None,
+    *,
+    caller: ModelCaller | None = None,
 ) -> EvalReport:
+    """Run every example. Errors and unrun cases count as failures, never passes.
+
+    ``caller`` carries the cache and run limits; without one, calls are uncached
+    and unlimited, which matches the old behaviour.
+    """
+    caller = caller or ModelCaller()
     results: list[ExampleResult] = []
+    stopped_reason: str | None = None
 
     for example in suite.examples:
         # Apply suite-level defaults for fields not explicitly set on the example
@@ -22,10 +49,36 @@ def run_suite(
         if "threshold" not in example.model_fields_set:
             example.threshold = suite.default_threshold
 
-        actual = provider.generate(example.input)
+        if stopped_reason:
+            results.append(_error_result(example, f"Not run: {stopped_reason}", "not_run"))
+            continue
 
-        comparator = get_comparator(example, embedder)
-        cmp_result = comparator.compare(actual, example.expected)
+        try:
+            completion, cost = caller.call(
+                provider,
+                example.input,
+                system=suite.system,
+                max_tokens=suite.max_tokens,
+                temperature=suite.temperature,
+            )
+        except BudgetExceeded as e:
+            stopped_reason = str(e)
+            results.append(_error_result(example, f"Not run: {stopped_reason}", "not_run"))
+            continue
+        except ProviderError as e:
+            msg = redact(str(e))
+            results.append(_error_result(example, f"Provider error: {msg}", "provider_error"))
+            continue
+
+        actual = completion.text
+        try:
+            comparator = get_comparator(example, embedder)
+            cmp_result = comparator.compare(actual, example.expected)
+        except ValueError as e:
+            res = _error_result(example, f"Comparator error: {redact(str(e))}", "comparator_error")
+            res.actual = actual
+            results.append(res)
+            continue
 
         val_results = []
         all_validators_passed = True
@@ -49,6 +102,12 @@ def run_suite(
                 detail=cmp_result.detail,
                 validator_results=val_results,
                 tags=example.tags,
+                id=example_id(example),
+                input_tokens=completion.input_tokens,
+                output_tokens=completion.output_tokens,
+                latency_ms=completion.latency_ms,
+                cost_usd=cost,
+                cached=completion.cached,
             )
         )
 
@@ -85,7 +144,7 @@ def run_suite(
     total = len(results)
     passed_count = sum(1 for r in results if r.passed)
     rate = passed_count / total if total > 0 else 1.0
-    gate_passed = rate >= suite.pass_rate
+    gate_passed = rate >= suite.pass_rate and stopped_reason is None
 
     return EvalReport(
         suite_name=suite.name,
@@ -97,4 +156,8 @@ def run_suite(
         gate_passed=gate_passed,
         results=results,
         retrieval_results=retrieval_results,
+        provider=provider.name,
+        model=str(getattr(provider, "model", provider.name)),
+        usage=caller.totals(),
+        stopped_reason=stopped_reason,
     )
