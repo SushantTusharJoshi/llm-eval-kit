@@ -16,8 +16,10 @@ Evaluate LLM outputs against golden examples with CI-friendly pass/fail gating.
 
 ## Install
 
+Not on PyPI yet; install from GitHub:
+
 ```bash
-pip install llm-eval-kit
+pip install git+https://github.com/SushantTusharJoshi/llm-eval-kit.git
 ```
 
 For development:
