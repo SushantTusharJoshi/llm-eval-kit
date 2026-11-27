@@ -9,6 +9,9 @@ from llm_eval_kit.providers.base import Embedder, LLMProvider
 class MockProvider(LLMProvider):
     """Returns canned responses from a dict. Falls back to echoing the input."""
 
+    name = "mock"
+    model = "mock"
+
     def __init__(self, responses: dict[str, str] | None = None):
         self._responses = responses or {}
 
