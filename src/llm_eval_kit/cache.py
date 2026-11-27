@@ -47,8 +47,10 @@ def make_cache_key(
     }
     # STEP: serialise with sorted keys so dict order never changes the key
     blob = json.dumps(parts, sort_keys=True, ensure_ascii=False, default=str)
+    # STEP: hash the UTF-8 bytes; the digest is fixed length and holds no prompt text
+    digest = hashlib.sha256(blob.encode("utf-8")).hexdigest()
     # RETURN: hex digest, safe to use as a file name
-    return hashlib.sha256(blob.encode("utf-8")).hexdigest()
+    return digest
 
 
 class ResultCache:

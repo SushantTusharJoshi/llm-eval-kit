@@ -1,0 +1,27 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "InvokeAllowedModelsOnly",
+      "Effect": "Allow",
+      "Action": "bedrock:InvokeModel",
+      "Resource": [
+        "arn:aws:bedrock:us-east-1::foundation-model/MODEL_ID_1",
+        "arn:aws:bedrock:us-east-1::foundation-model/MODEL_ID_2",
+        "arn:aws:bedrock:us-east-1:ACCOUNT_ID:inference-profile/INFERENCE_PROFILE_ID"
+      ]
+    },
+    {
+      "Sid": "ApplyOneGuardrail",
+      "Effect": "Allow",
+      "Action": "bedrock:ApplyGuardrail",
+      "Resource": "arn:aws:bedrock:us-east-1:ACCOUNT_ID:guardrail/GUARDRAIL_ID"
+    },
+    {
+      "Sid": "WriteReportsUnderOnePrefix",
+      "Effect": "Allow",
+      "Action": "s3:PutObject",
+      "Resource": "arn:aws:s3:::REPORT_BUCKET/llm-eval-reports/*"
+    }
+  ]
+}

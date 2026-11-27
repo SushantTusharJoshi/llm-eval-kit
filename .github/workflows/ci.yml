@@ -34,3 +34,20 @@ jobs:
 
       - name: Run tests with coverage (live tests are deselected)
         run: pytest --tb=short --cov=llm_eval_kit --cov-report=term-missing
+
+  action-smoke:
+    # Runs the composite action from this checkout with the mock provider,
+    # so action.yml is exercised on every pull request without keys.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: ./
+        with:
+          suite: examples/regression_suite.yaml
+          baseline: examples/baselines/regression_suite.json
+          provider: mock
+          report-path: reports/action-smoke.json
+      - name: Check the report was written
+        run: python -c "import json; d=json.load(open('reports/action-smoke.json')); assert d['regression']['passed'], d['regression']"

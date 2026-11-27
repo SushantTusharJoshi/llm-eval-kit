@@ -17,7 +17,8 @@ change the output, serialised in a stable order, plus a version so you can inval
 ```mermaid
 flowchart TD
     A[STEP: gather provider, model, settings, prompt, system, rubric, context, key version] --> B[STEP: JSON dump with sorted keys]
-    B --> C[RETURN: SHA-256 hex digest]
+    B --> C[STEP: SHA-256 over the UTF-8 bytes]
+    C --> D[RETURN: hex digest, used as the file name]
 ```
 
 ## Slips (what this change fixed)

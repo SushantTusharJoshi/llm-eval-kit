@@ -27,7 +27,7 @@ flowchart TD
 ## Slips (what this change fixed)
 
 - Before: no retries at all; one 429 failed the whole CI run.
-- The provider decides what is retryable (429, 408, 409, 5xx, timeouts, network errors). A 400 or 401 is raised at once, because trying again cannot fix a bad request or a bad key.
+- The provider decides what is retryable (429, 408, 409, 500, 502, 503, 504, timeouts, network errors). A 400 or 401 is raised at once, because trying again cannot fix a bad request or a bad key.
 - `sleep` is injected, so the test checks the exact wait sequence without waiting.
 
 ## Interviewer questions and how the code answers
