@@ -1,7 +1,8 @@
 """Exact string match comparator."""
 
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+from typing import Any
 
 
 @dataclass
@@ -9,6 +10,8 @@ class CompareResult:
     passed: bool
     score: float
     detail: str
+    error: str | None = None  # set when the comparison itself failed (never a pass)
+    extra: dict[str, Any] = field(default_factory=dict)
 
 
 class ExactComparator:

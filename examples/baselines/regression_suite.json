@@ -1,0 +1,34 @@
+{
+  "cases": {
+    "echo-logic": {
+      "critical": true,
+      "passed": true,
+      "score": 1.0
+    },
+    "no-secret-in-answer": {
+      "critical": true,
+      "passed": true,
+      "score": 1.0
+    },
+    "quality-greeting": {
+      "critical": false,
+      "passed": true,
+      "score": 1.0
+    },
+    "quality-known-gap": {
+      "critical": false,
+      "passed": false,
+      "score": 0.0
+    },
+    "quality-similar": {
+      "critical": false,
+      "passed": true,
+      "score": 0.713246
+    }
+  },
+  "format": 1,
+  "model": "mock",
+  "pass_rate": 0.8,
+  "provider": "mock",
+  "suite": "regression-demo"
+}

@@ -27,6 +27,9 @@ class ExampleResult:
     cost_usd: float | None = None
     cached: bool = False
     error: str | None = None
+    critical: bool = False
+    check_type: str | None = None
+    judge: dict[str, Any] | None = None
 
 
 @dataclass
@@ -53,6 +56,15 @@ class EvalReport:
     model: str | None = None
     usage: UsageTotals = field(default_factory=UsageTotals)
     stopped_reason: str | None = None
+    guardrail_results: list[Any] = field(default_factory=list)
+    regression: dict[str, Any] | None = None
+    warnings: list[str] = field(default_factory=list)
+
+    @property
+    def critical_failures(self) -> list[str]:
+        ids = [r.id for r in self.results if r.critical and not r.passed]
+        ids += [f"guardrail:{g.id}" for g in self.guardrail_results if not g.skipped and not g.passed]
+        return ids
 
     def to_dict(self) -> dict[str, Any]:
         """Plain dict for JSON, with every string passed through secret redaction."""
@@ -73,6 +85,19 @@ class EvalReport:
         ]
         if self.stopped_reason:
             lines.append(f"Stopped early: {self.stopped_reason}")
+        crit = self.critical_failures
+        if crit:
+            lines.append(f"Critical failures ({len(crit)}): {', '.join(crit[:10])}")
+        if self.guardrail_results:
+            ran = [g for g in self.guardrail_results if not g.skipped]
+            g_passed = sum(1 for g in ran if g.passed)
+            skipped = len(self.guardrail_results) - len(ran)
+            lines.append(f"Guardrails: {g_passed}/{len(ran)} passed, {skipped} skipped")
+            if skipped:
+                first = next(g for g in self.guardrail_results if g.skipped)
+                lines.append(f"  {first.detail}")
+        for w in self.warnings:
+            lines.append(f"Warning: {w}")
 
         if self.retrieval_results:
             ret_passed = sum(1 for r in self.retrieval_results if r.passed)

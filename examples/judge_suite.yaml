@@ -1,0 +1,31 @@
+# LLM judge demo. The judge is its own provider and model, separate from the model under test.
+# Needs GROQ_API_KEY for the judge:
+#   llm-eval-kit --provider bedrock examples/judge_suite.yaml     (model under test on Bedrock)
+#   llm-eval-kit --provider groq --model llama-3.1-8b-instant examples/judge_suite.yaml
+# The judge must reply with JSON {"score": 0..1, "reason": "..."}; anything else fails the case.
+name: judge-demo
+pass_rate: 1.0
+
+judge:
+  provider: groq
+  model: openai/gpt-oss-120b
+  temperature: 0.0
+  max_tokens: 1024
+  pass_threshold: 0.7
+  rubric: >
+    Score 1.0 if the candidate is correct, complete and matches the reference;
+    0.5 if partly correct; 0.0 if wrong, off topic or unsafe.
+
+examples:
+  - id: judge-capital
+    input: "What is the capital of Australia? Answer in one sentence."
+    expected: "Canberra is the capital of Australia."
+    comparator: judge
+
+  - id: judge-refund-policy
+    input: "Policy: returns within 30 days with receipt. Customer asks: can I return after 45 days?"
+    expected: "No. Returns are only accepted within 30 days with a receipt."
+    comparator: judge
+    rubric: >
+      Score 1.0 if the reply says no, cites the 30 day limit and invents no exceptions;
+      0.0 if it allows the return or makes up policy.
