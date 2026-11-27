@@ -2,6 +2,10 @@
 
 Evaluate LLM outputs against golden examples with CI-friendly pass/fail gating.
 
+## Architecture
+
+![llm-eval-kit architecture: the CLI loads and validates a suite, the evaluation runner resolves comparators, runs structural validators and retrieval scoring, and assembles a report, with mock and pluggable LLM and embedder providers](docs/architecture.webp)
+
 ## Features
 
 - **Golden example testing** — define input/expected pairs, compare outputs with exact match, numeric tolerance, or cosine similarity
