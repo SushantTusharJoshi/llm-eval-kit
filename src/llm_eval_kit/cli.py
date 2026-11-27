@@ -23,6 +23,7 @@ from llm_eval_kit.providers.mock import MockEmbedder
 from llm_eval_kit.regression import evaluate_regression, load_baseline, regression_summary, write_baseline
 from llm_eval_kit.reliability import Budget, RunLimits
 from llm_eval_kit.runner import run_suite
+from llm_eval_kit.s3upload import upload_report
 from llm_eval_kit.security import redact
 
 EXIT_STOPPED = 3
@@ -57,6 +58,9 @@ def build_parser() -> argparse.ArgumentParser:
         help="Print per-example results",
     )
     parser.add_argument("--report", metavar="PATH", help="Write the JSON report here")
+    parser.add_argument(
+        "--upload-s3", metavar="S3_URI", help="Also upload the report to s3://bucket/prefix (needs boto3 and AWS credentials)"
+    )
 
     gate = parser.add_argument_group("regression gate")
     gate.add_argument("--baseline", metavar="PATH", help="Baseline JSON in git to compare against")
@@ -200,6 +204,14 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.report:
         _write_report(args.report, report.to_json())
+    if args.upload_s3:
+        try:
+            _, message = upload_report(
+                report.to_json(), args.upload_s3, suite.name, region=args.region, sha=os.environ.get("GITHUB_SHA")
+            )
+        except ValueError as e:
+            message = f"S3 upload skipped: {e}"
+        print(message, file=sys.stderr)
 
     if report.stopped_reason:
         return EXIT_STOPPED

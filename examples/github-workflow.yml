@@ -1,0 +1,58 @@
+# Example workflow for a repo that USES llm-eval-kit. Copy to .github/workflows/llm-eval.yml.
+# Not active in this repo (it lives under examples/).
+name: LLM regression gate
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  eval-groq:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      # Pin to a commit SHA of llm-eval-kit in real use.
+      - uses: SushantTusharJoshi/llm-eval-kit@main
+        env:
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+        with:
+          suite: evals/suite.yaml
+          baseline: evals/baseline.json
+          provider: groq
+          max-cost: "0.50"
+          extra-args: "--max-calls 200"
+      - uses: actions/upload-artifact@v4 # pin by SHA in real use
+        if: always()
+        with:
+          name: llm-eval-report
+          path: llm-eval-report.json
+
+  eval-bedrock:
+    # Only this job may request an OIDC token. Pull requests from forks get no token.
+    if: ${{ vars.AWS_ROLE_ARN != '' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: SushantTusharJoshi/llm-eval-kit@main
+        env:
+          BEDROCK_MODEL_ID: ${{ vars.BEDROCK_MODEL_ID }}
+        with:
+          suite: evals/suite.yaml
+          baseline: evals/baseline.json
+          provider: bedrock
+          aws-role-arn: ${{ vars.AWS_ROLE_ARN }}
+          aws-region: us-east-1
+          max-cost: "0.50"
+          extra-args: "--upload-s3 s3://YOUR-BUCKET/llm-eval-reports"

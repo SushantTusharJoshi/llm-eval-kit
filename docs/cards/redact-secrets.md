@@ -26,7 +26,7 @@ flowchart TD
 ## Slips (what this change fixed)
 
 - Error bodies from a provider can echo headers; `OpenAICompatibleProvider._post` masks its own key in the snippet.
-- `report.to_dict()`, `summary()`, cache writes and CLI errors all pass through redaction.
+- `report.to_dict()`, `summary()`, cache writes, CLI errors and S3 uploads all pass through redaction.
 - `repr()` of a provider shows model and URL, never the key.
 - Values shorter than 8 characters are ignored, so `true` or `1` are not masked everywhere.
 
