@@ -3,13 +3,93 @@
 An LLM regression gate for CI. Run a suite of golden cases against a model, compare with a baseline stored in git,
 and fail the build when a critical check breaks or quality drops more than you allow.
 
-![llm-eval-kit architecture: the CLI loads and validates a suite, the evaluation runner resolves comparators, runs structural validators and retrieval scoring, and assembles a report, with mock and pluggable LLM and embedder providers](docs/architecture.webp)
+- Strict gate for critical cases (security, schema, deterministic logic), tolerance for quality scores ([regression.py](src/llm_eval_kit/regression.py))
+- Providers: mock (offline), Groq and any OpenAI-compatible server (httpx), Amazon Bedrock Converse (boto3, optional) ([providers/](src/llm_eval_kit/providers/))
+- LLM judge with its own model, a rubric in the suite, and schema-validated JSON output ([comparators/judge.py](src/llm_eval_kit/comparators/judge.py))
+- File cache, per-case tokens, latency and estimated cost, and a spend cap ([calls.py](src/llm_eval_kit/calls.py), [cache.py](src/llm_eval_kit/cache.py), [pricing.py](src/llm_eval_kit/pricing.py))
+- A composite GitHub Action that can assume an AWS role with OIDC ([action.yml](action.yml))
 
-- Strict gate for critical cases (security, schema, deterministic logic), tolerance for quality scores
-- Providers: mock (offline), Groq and any OpenAI-compatible server (httpx), Amazon Bedrock Converse (boto3, optional)
-- LLM judge with its own model, a rubric in the suite, and schema-validated JSON output
-- File cache, per-case tokens, latency and estimated cost, and a spend cap
-- A composite GitHub Action that can assume an AWS role with OIDC
+Status on `main`, with evidence:
+
+| What | Status | Evidence |
+|---|---|---|
+| Unit tests, lint, action smoke test (mock) | Pass | [CI run 46031868449](https://github.com/SushantTusharJoshi/llm-eval-kit/actions/runs/46031868449), [ci.yml](.github/workflows/ci.yml) |
+| Groq live smoke test (real API call, token counts, cost) | Pass | [Live run 46037535775](https://github.com/SushantTusharJoshi/llm-eval-kit/actions/runs/46037535775), [tests/live/test_live_providers.py](tests/live/test_live_providers.py) |
+| Bedrock Converse provider | Unverified: stub-tested only; the AWS account cannot call Bedrock yet | [tests/test_providers.py](tests/test_providers.py) |
+| Bedrock Guardrails suite | Unverified: stub-tested only, same reason | [tests/test_agreement_guardrails.py](tests/test_agreement_guardrails.py), [guardrails.yml](.github/workflows/guardrails.yml) |
+| LLM judge agreement with people | Unverified: pending human labels | [examples/judge_agreement/labels.csv](examples/judge_agreement/labels.csv) |
+
+## Architecture
+
+Drawn from the code on `main`; every box names the file that does the work. Notes on each path: [docs/architecture.md](docs/architecture.md).
+
+```mermaid
+flowchart TB
+  subgraph runtime["Runtime: one llm-eval-kit run"]
+    direction TB
+    cli["CLI, flags and exit codes 0 / 1 / 3<br/>cli.py main()"]
+    loader["Suite loader, yaml.safe_load or JSON<br/>loader.py load_suite()"]
+    config["Suite schema, regex length cap<br/>config.py EvalSuite (pydantic)"]
+    factory["Provider factory<br/>providers/factory.py build_provider()"]
+    runner["Runner, one case at a time<br/>runner.py run_suite()"]
+
+    cli --> loader --> config
+    cli --> factory
+    config --> runner
+    factory --> runner
+
+    caller["Model call: cache, then budget, then call, then price<br/>calls.py ModelCaller.call()"]
+    cache[("File cache, SHA-256 key<br/>cache.py ResultCache, make_cache_key()")]
+    budget["Run limits: --max-cost, --max-calls, --max-run-tokens<br/>reliability.py Budget"]
+    pricing["Dated price table<br/>pricing.py estimate_cost()"]
+    runner --> caller
+    caller <--> cache
+    caller --> budget
+    caller --> pricing
+
+    mock["Mock, offline echo<br/>providers/mock.py MockProvider"]
+    oai["Groq and OpenAI-compatible, httpx<br/>providers/openai_compat.py"]
+    retry["Timeout and capped exponential backoff<br/>reliability.py call_with_retries()"]
+    bedrock["Bedrock Converse, boto3<br/>providers/bedrock.py"]
+    caller --> mock
+    caller --> oai --> retry
+    caller --> bedrock
+
+    cmp["Comparators<br/>comparators/exact.py, numeric.py, cosine.py"]
+    judge["LLM judge, strict JSON verdict<br/>comparators/judge.py parse_verdict()"]
+    val["Structural validators: json, json_keys, length, regex<br/>validators/structural.py"]
+    retr["Retrieval scoring, mock embedder from the CLI<br/>retrieval.py check_retrieval()"]
+    guard["Bedrock ApplyGuardrail checks, skipped without<br/>BEDROCK_GUARDRAIL_ID / _VERSION<br/>guardrails.py"]
+    runner --> cmp
+    runner --> judge
+    judge -- "judge model call" --> caller
+    runner --> val
+    runner --> retr
+    runner --> guard
+
+    report["Report: per-case tokens, latency, cost, cached<br/>report.py EvalReport"]
+    runner --> report
+    gate{"Regression gate vs baseline JSON in git<br/>critical cases strict, quality within tolerance<br/>regression.py evaluate_regression()"}
+    report --> gate
+    redact["Secret redaction on every writer<br/>security.py redact()"]
+    report --> redact
+    redact --> out["Summary on stdout, --report JSON file"]
+    redact --> s3["Optional --upload-s3, never changes the exit code<br/>s3upload.py upload_report()"]
+    gate --> exit["Exit code"]
+
+    agree["Separate CLI: judge agreement, percent and Cohen's kappa<br/>agreement.py, examples/judge_agreement/labels.csv"]
+    agree --> judge
+  end
+
+  subgraph ci["CI and automation: .github/workflows/"]
+    direction TB
+    action["Composite action: setup-python, optional OIDC role,<br/>pip install the kit, run the CLI<br/>action.yml"]
+    ciyml["ci.yml, push to main and pull requests<br/>test: ruff + pytest with coverage on Python 3.10, 3.11, 3.12<br/>action-smoke: runs action.yml from the checkout, mock provider,<br/>examples/regression_suite.yaml + baseline"]
+    live["live.yml, push to main and manual only<br/>groq: pytest -m live -k groq with secrets.GROQ_API_KEY<br/>bedrock: only if vars.AWS_ROLE_ARN is set, OIDC role"]
+    grd["guardrails.yml, nightly and manual<br/>only if vars.AWS_ROLE_ARN and vars.BEDROCK_GUARDRAIL_ID are set<br/>examples/guardrail_suite.yaml"]
+    ciyml --> action
+  end
+```
 
 ## Quick start (offline, mock provider)
 
@@ -54,10 +134,12 @@ Code: [providers/openai_compat.py](src/llm_eval_kit/providers/openai_compat.py),
 API reported. Tests use an httpx mock transport, a fake Bedrock client and botocore's Stubber
 ([tests/test_providers.py](tests/test_providers.py)).
 
-Status: the request and response handling is tested against stubs only. Calls to the real Groq and Bedrock APIs are
-implemented but unverified until the live smoke tests ([tests/live/](tests/live/test_live_providers.py),
-[.github/workflows/live.yml](.github/workflows/live.yml)) run with a key or role. Check the exact Bedrock model ID
-for your account in the console; the kit does not assert that any ID is available to you.
+Status: the Groq live smoke test passed on `main` ([run 46037535775](https://github.com/SushantTusharJoshi/llm-eval-kit/actions/runs/46037535775),
+`groq` job in [live.yml](.github/workflows/live.yml)): one real completion with token counts, then a one-case suite
+with a priced result ([tests/live/test_live_providers.py](tests/live/test_live_providers.py)). The Bedrock provider is
+unverified: its request and response handling is tested against stubs only, and the `bedrock` live job is skipped
+because the AWS account cannot call Bedrock yet. Check the exact Bedrock model ID for your account in the console; the
+kit does not assert that any ID is available to you.
 
 Provider calls have a timeout (`--timeout`, default 60 s) and bounded retries with capped exponential backoff for
 429, 408, 409, 500, 502, 503, 504, timeouts and network errors (`--retries`, default 2;
@@ -130,8 +212,8 @@ Optional Bedrock Guardrails checks: `guardrail_examples` send fixed text to Appl
 `OUTPUT`) and assert `intervened` or `none`. They are always critical, skipped without `BEDROCK_GUARDRAIL_ID` and
 `BEDROCK_GUARDRAIL_VERSION`, and run nightly or by hand in [guardrails.yml](.github/workflows/guardrails.yml).
 See [examples/guardrail_suite.yaml](examples/guardrail_suite.yaml) and [guardrails.py](src/llm_eval_kit/guardrails.py).
-Stub-tested only ([tests/test_agreement_guardrails.py](tests/test_agreement_guardrails.py)); unverified against a
-real guardrail.
+Unverified: stub-tested only ([tests/test_agreement_guardrails.py](tests/test_agreement_guardrails.py)); it has not run
+against a real guardrail because the AWS account cannot call Bedrock yet.
 
 ## LLM judge
 
@@ -155,8 +237,9 @@ examples:
   make the case an error (`judge_malformed`), which fails it
   ([comparators/judge.py](src/llm_eval_kit/comparators/judge.py), [tests/test_judge.py](tests/test_judge.py)).
 - The candidate output is wrapped in `<candidate>` tags and the judge is told it is data, not instructions.
-- The report warns when the judge is the same model as the model under test.
-- Judge calls share the cache (the rubric is part of the key) and the run limits.
+- The report warns when the judge is the same model as the model under test ([runner.py](src/llm_eval_kit/runner.py),
+  [tests/test_judge.py](tests/test_judge.py)).
+- Judge calls share the cache (the rubric is part of the key) and the run limits ([calls.py](src/llm_eval_kit/calls.py)).
 
 Judge agreement: [examples/judge_agreement/labels.csv](examples/judge_agreement/labels.csv) has 20 cases with an
 empty `human_label` column. After labeling them `pass` or `fail`:
@@ -166,7 +249,7 @@ python -m llm_eval_kit.agreement examples/judge_agreement/labels.csv --judge-pro
 ```
 
 This prints percent agreement and Cohen's kappa ([agreement.py](src/llm_eval_kit/agreement.py)).
-Agreement is pending: no human labels yet, so no agreement number is claimed.
+Unverified: agreement is pending human labels, so no agreement number is claimed.
 
 ## Cache and cost
 
@@ -189,7 +272,7 @@ Agreement is pending: no human labels yet, so no agreement number is claimed.
 
   Any other model or region reports cost as `null`, not a guess.
 - `--max-cost USD` stops the run when estimated live spend reaches the cap; remaining cases are marked `not_run` and
-  the CLI exits 3. The check runs before each call, so a run can pass the cap by at most one call. If the model has no
+  the CLI exits 3 (`test_tiny_max_cost_exits_3` in [tests/test_cli.py](tests/test_cli.py)). The check runs before each call, so a run can pass the cap by at most one call. If the model has no
   price, the CLI warns that the cap cannot be enforced; use `--max-calls` or `--max-run-tokens` too.
 
 For Bedrock-side numbers, CloudWatch already has `AWS/Bedrock` metrics; see [docs/cloudwatch.md](docs/cloudwatch.md).
@@ -236,10 +319,12 @@ IAM policy, OIDC trust policy and console steps: [infra/aws/](infra/aws/README.m
 - Reports, summaries, cache files, S3 uploads and error messages pass through secret redaction: values of env vars
   named like `*KEY*`, `*TOKEN*`, `*SECRET*`, `*PASSWORD*` are masked ([security.py](src/llm_eval_kit/security.py)).
   A test plants a fake key, makes a mock server echo it in an error and in an answer, and checks it never appears in
-  CLI output or the report file.
-- Provider `repr()` never includes the key.
+  CLI output or the report file (`test_report_and_cli_output_have_no_key` in
+  [tests/test_security.py](tests/test_security.py)).
+- Provider `repr()` never includes the key ([tests/test_providers.py](tests/test_providers.py)).
 - Workflows pin actions by commit SHA, default to `contents: read`, and grant `id-token: write` only to the job that
-  assumes the AWS role. Live tests run only on push to `main` and by hand, never on pull requests.
+  assumes the AWS role ([.github/workflows/](.github/workflows/), [action.yml](action.yml)). Live tests run only on
+  push to `main` and by hand, never on pull requests ([live.yml](.github/workflows/live.yml)).
 - The judge treats the candidate output as data, but prompt injection against a judge is still possible; measure
   judge agreement before trusting it.
 - `--upload-s3 s3://bucket/prefix` uploads the redacted report under `prefix/<suite>/<timestamp>-<sha>.json`
@@ -247,6 +332,8 @@ IAM policy, OIDC trust policy and console steps: [infra/aws/](infra/aws/README.m
   and never changes the exit code. The baseline stays in git.
 
 ## Reference
+
+Comparators: [comparators/](src/llm_eval_kit/comparators/). Validators: [validators/structural.py](src/llm_eval_kit/validators/structural.py).
 
 | Comparator | Description | Config |
 |---|---|---|
@@ -290,3 +377,20 @@ Each function below has a comment header (`# What it does`, `# Catch it`, `# Car
 ## License
 
 MIT
+
+## About the coder
+
+Built by Sushant Joshi, an AI engineer who ships ML and LLM features with evidence:
+calibrated models, evaluation gates in CI, safe data access for agents, and AWS Bedrock
+where it adds safety or model choice. Every claim in this README links to code, a test,
+a benchmark, a CI run or a live deployment.
+
+- AWS Certified Generative AI Developer - Professional
+- NVIDIA-Certified Professional and Associate, Generative AI LLMs
+- MS, Northeastern University, 2026
+- AI & Automation Specialist at DMV Music Alliance (part-time)
+- Open source: a merged fix in SHAP, open PRs to SHAP and Anthropic's Claude Agent SDK
+
+[Portfolio](https://sushant-joshi-mu.vercel.app) ·
+[LinkedIn](https://www.linkedin.com/in/sushant-joshi44/) ·
+sushjosh9@gmail.com
