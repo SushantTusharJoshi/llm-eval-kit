@@ -16,10 +16,10 @@ SHEET = "examples/judge_agreement/labels.csv"
 
 
 class TestAgreement:
-    def test_shipped_sheet_has_20_unlabeled_rows(self):
+    def test_shipped_sheet_has_20_human_labels(self):
         rows = load_sheet(SHEET)
         assert len(rows) == 20
-        assert all(r["human_label"] == "" for r in rows)
+        assert all(r["human_label"] in {"0", "1"} for r in rows)
         assert len({r["id"] for r in rows}) == 20
         assert all(r["prompt"] and r["output"] and r["rubric"] for r in rows)
 
@@ -64,9 +64,9 @@ class TestAgreement:
         assert list(decisions.values()) == [True, False, None]
         assert rows[0]["output"] in judge.calls[0]["prompt"]
 
-    def test_cli_pending_on_shipped_sheet(self, capsys):
+    def test_cli_reads_all_labels_on_shipped_sheet(self, capsys):
         assert agreement.main([SHEET, "--judge-provider", "mock"]) == 0
-        assert "pending" in capsys.readouterr().out
+        assert "20/20 labeled rows" in capsys.readouterr().out
 
     def test_cli_on_labeled_copy(self, tmp_path, monkeypatch, capsys):
         rows = load_sheet(SHEET)[:2]
