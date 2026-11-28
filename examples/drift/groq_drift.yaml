@@ -1,0 +1,41 @@
+# Nightly provider drift check (live.yml, groq job). Same model name every night;
+# a failure here means the provider's behaviour changed, not our code.
+#   llm-eval-kit examples/drift/groq_drift.yaml --provider groq \
+#     --baseline examples/baselines/groq_drift.json --no-cache
+# Cases are deterministic on purpose so the baseline can be all-pass.
+name: groq-drift
+description: Deterministic answers that should not change under the same model name
+pass_rate: 1.0
+max_tokens: 256
+temperature: 0.0
+
+critical_check_types: [logic, format]
+regression:
+  pass_rate_drop: 0.0   # any non-critical case that passed in the baseline and fails now is drift
+  mean_score_drop: 0.0
+
+examples:
+  - id: arithmetic-sum
+    check_type: logic
+    input: "What is 17 + 25? Reply with only the number."
+    expected: "42"
+    comparator: numeric
+
+  - id: arithmetic-product
+    check_type: logic
+    input: "What is 12 * 12? Reply with only the number."
+    expected: "144"
+    comparator: numeric
+
+  - id: single-word-reply
+    check_type: format
+    input: "Reply with the single word: pong"
+    expected: "pong"
+    comparator: exact
+    case_sensitive: false
+
+  - id: capital-city
+    input: "What is the capital of France? Reply with one word."
+    expected: "Paris"
+    comparator: exact
+    case_sensitive: false

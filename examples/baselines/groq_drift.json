@@ -1,0 +1,29 @@
+{
+  "cases": {
+    "arithmetic-product": {
+      "critical": true,
+      "passed": true,
+      "score": 1.0
+    },
+    "arithmetic-sum": {
+      "critical": true,
+      "passed": true,
+      "score": 1.0
+    },
+    "capital-city": {
+      "critical": false,
+      "passed": true,
+      "score": 1.0
+    },
+    "single-word-reply": {
+      "critical": true,
+      "passed": true,
+      "score": 1.0
+    }
+  },
+  "format": 1,
+  "model": "openai/gpt-oss-120b",
+  "pass_rate": 1.0,
+  "provider": "groq",
+  "suite": "groq-drift"
+}
