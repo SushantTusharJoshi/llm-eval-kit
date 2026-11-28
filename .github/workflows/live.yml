@@ -11,6 +11,7 @@ name: Live smoke tests
 on:
   push:
     branches: [main]
+  # Schedules run from main only; GitHub can start a scheduled run late or skip one under load.
   schedule:
     - cron: "30 6 * * *" # 06:30 UTC nightly
   workflow_dispatch:
