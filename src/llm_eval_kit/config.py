@@ -5,9 +5,9 @@ with clear error messages instead of crashing mid-eval.
 """
 
 import hashlib
-import re
 from typing import Literal
 
+import regex
 from pydantic import BaseModel, Field, field_validator
 
 MAX_REGEX_PATTERN_LEN = 500
@@ -31,8 +31,8 @@ class ValidatorConfig(BaseModel):
         if len(v) > MAX_REGEX_PATTERN_LEN:
             raise ValueError(f"regex pattern longer than {MAX_REGEX_PATTERN_LEN} characters")
         try:
-            re.compile(v)
-        except re.error as e:
+            regex.compile(v)
+        except regex.error as e:
             raise ValueError(f"invalid regex pattern: {e}") from None
         return v
 
