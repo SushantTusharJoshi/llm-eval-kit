@@ -17,7 +17,7 @@ Status on `main`, with evidence:
 | Groq live smoke test (real API call, token counts, cost) | Pass | [Live run 46037535775](https://github.com/SushantTusharJoshi/llm-eval-kit/actions/runs/46037535775), [tests/live/test_live_providers.py](tests/live/test_live_providers.py) |
 | Bedrock Converse provider | Unverified: stub-tested only; the AWS account cannot call Bedrock yet | [tests/test_providers.py](tests/test_providers.py) |
 | Bedrock Guardrails suite | Unverified: stub-tested only, same reason | [tests/test_agreement_guardrails.py](tests/test_agreement_guardrails.py), [guardrails.yml](.github/workflows/guardrails.yml) |
-| LLM judge agreement with people | Unverified: pending human labels | [examples/judge_agreement/labels.csv](examples/judge_agreement/labels.csv) |
+| LLM judge agreement with people | Measured: 90% agreement, Cohen's kappa 0.79 on 20 hand-labelled cases (Groq judge, run 46142276883) | [examples/judge_agreement/labels.csv](examples/judge_agreement/labels.csv), [agreement.yml](.github/workflows/agreement.yml) |
 
 ## Architecture
 
@@ -261,7 +261,7 @@ python -m llm_eval_kit.agreement examples/judge_agreement/labels.csv --judge-pro
 ```
 
 This prints percent agreement and Cohen's kappa ([agreement.py](src/llm_eval_kit/agreement.py)).
-Unverified: agreement is pending human labels, so no agreement number is claimed.
+Measured on 2026-11-28 with the Groq judge: 90.0% agreement on 20 of 20 labelled cases, Cohen's kappa 0.79, no judge errors ([run 46142276883](https://github.com/SushantTusharJoshi/llm-eval-kit/actions/runs/46142276883)). The two disagreements are ag-19 and ag-20, both in the JSON block: the human labeller accepted a plain-text answer and `"age": "thirty"` as correct, while the judge applied the rubric's strict "JSON object with correct values" wording. Run it again by hand with the Judge agreement workflow.
 
 ## Cache and cost
 
