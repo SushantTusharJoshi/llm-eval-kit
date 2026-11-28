@@ -170,6 +170,18 @@ class LLMProvider(ABC):
 
 Old providers that only implement `generate()` keep working; the default `complete()` wraps it.
 
+### Monitoring
+
+[live.yml](.github/workflows/live.yml) also runs nightly at 06:30 UTC to catch provider drift: the provider changing
+behaviour under the same model name. The `groq` job runs the pytest smoke test and a four-case deterministic suite
+([examples/drift/groq_drift.yaml](examples/drift/groq_drift.yaml)) against its committed baseline
+([examples/baselines/groq_drift.json](examples/baselines/groq_drift.json)) with zero tolerance. If either fails, the
+`drift-report` job opens one issue labelled `drift` titled "Provider drift detected" (or comments on the open one).
+A later clean run adds a comment saying so; closing the issue is left to a person. `drift-report` is the only job
+with `issues: write`. Both jobs write a run summary. The `bedrock` job is skipped with a notice while the
+`AWS_ROLE_ARN` repo variable is unset, so it never fails the nightly. GitHub runs schedules from `main` only and
+pauses them after 60 days without repo activity.
+
 ## Gates: strict for critical, tolerance for quality
 
 ```yaml
@@ -324,7 +336,7 @@ IAM policy, OIDC trust policy and console steps: [infra/aws/](infra/aws/README.m
 - Provider `repr()` never includes the key ([tests/test_providers.py](tests/test_providers.py)).
 - Workflows pin actions by commit SHA, default to `contents: read`, and grant `id-token: write` only to the job that
   assumes the AWS role ([.github/workflows/](.github/workflows/), [action.yml](action.yml)). Live tests run only on
-  push to `main` and by hand, never on pull requests ([live.yml](.github/workflows/live.yml)).
+  push to `main`, nightly and by hand, never on pull requests ([live.yml](.github/workflows/live.yml)).
 - The judge treats the candidate output as data, but prompt injection against a judge is still possible; measure
   judge agreement before trusting it.
 - `--upload-s3 s3://bucket/prefix` uploads the redacted report under `prefix/<suite>/<timestamp>-<sha>.json`
