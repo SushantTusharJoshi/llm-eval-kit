@@ -57,7 +57,7 @@ flowchart TB
 
     cmp["Comparators<br/>comparators/exact.py, numeric.py, cosine.py"]
     judge["LLM judge, strict JSON verdict<br/>comparators/judge.py parse_verdict()"]
-    val["Structural validators: json, json_keys, length, regex<br/>validators/structural.py"]
+    val["Structural validators: json, json_keys, length, regex (1 s timeout)<br/>validators/structural.py"]
     retr["Retrieval scoring, mock embedder from the CLI<br/>retrieval.py check_retrieval()"]
     guard["Bedrock ApplyGuardrail checks, skipped without<br/>BEDROCK_GUARDRAIL_ID / _VERSION<br/>guardrails.py"]
     runner --> cmp
@@ -326,8 +326,10 @@ IAM policy, OIDC trust policy and console steps: [infra/aws/](infra/aws/README.m
 - Suites load with `yaml.safe_load` only ([loader.py](src/llm_eval_kit/loader.py)); a `!!python/object` tag is
   rejected ([tests/test_security.py](tests/test_security.py)).
 - Regex patterns are limited to 500 characters and compiled at load time; the regex validator refuses outputs over
-  100,000 characters instead of running on them, since Python's `re` has no timeout
-  ([config.py](src/llm_eval_kit/config.py), [validators/structural.py](src/llm_eval_kit/validators/structural.py)).
+  100,000 characters, and runs each pattern through the `regex` module with a 1 s timeout (Python's `re` has none),
+  so a catastrophic pattern such as `(a+)+$` fails the check with "regex timed out after 1 s" instead of hanging,
+  inverted or not ([config.py](src/llm_eval_kit/config.py),
+  [validators/structural.py](src/llm_eval_kit/validators/structural.py), [tests/test_security.py](tests/test_security.py)).
 - Reports, summaries, cache files, S3 uploads and error messages pass through secret redaction: values of env vars
   named like `*KEY*`, `*TOKEN*`, `*SECRET*`, `*PASSWORD*` are masked ([security.py](src/llm_eval_kit/security.py)).
   A test plants a fake key, makes a mock server echo it in an error and in an answer, and checks it never appears in

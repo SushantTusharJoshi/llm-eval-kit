@@ -1,6 +1,7 @@
 """Security: secret redaction (planted fake key), safe YAML, regex limits."""
 
 import json
+import time
 
 import httpx
 import pytest
@@ -13,7 +14,7 @@ from llm_eval_kit.loader import load_suite
 from llm_eval_kit.providers.openai_compat import groq_provider
 from llm_eval_kit.runner import run_suite
 from llm_eval_kit.security import redact, redact_obj, secret_values
-from llm_eval_kit.validators.structural import MAX_REGEX_INPUT_CHARS, validate_regex
+from llm_eval_kit.validators.structural import MAX_REGEX_INPUT_CHARS, REGEX_TIMEOUT_S, validate_regex
 from tests.conftest import StubProvider
 
 PLANTED = "gsk_PLANTED_FAKE_KEY_do_not_leak_42"
@@ -101,3 +102,20 @@ class TestRegexLimits:
         result = validate_regex("a" * (MAX_REGEX_INPUT_CHARS + 1), cfg)
         assert not result.passed
         assert "too long" in result.detail
+
+    @pytest.mark.parametrize("invert", [False, True])
+    def test_catastrophic_pattern_times_out_as_failure(self, invert):
+        cfg = ValidatorConfig(type="regex", pattern=r"(a+)+$", invert=invert)
+        start = time.monotonic()
+        result = validate_regex("a" * 5000 + "b", cfg)
+        elapsed = time.monotonic() - start
+        assert elapsed < REGEX_TIMEOUT_S + 2.0
+        assert not result.passed
+        assert result.detail == f"regex timed out after {REGEX_TIMEOUT_S:g} s"
+
+    def test_normal_patterns_unchanged(self):
+        cfg = ValidatorConfig(type="regex", pattern=r"\d{3}-\d{4}")
+        assert validate_regex("Call 555-1234 today", cfg).passed
+        miss = validate_regex("no phone number here", cfg)
+        assert not miss.passed
+        assert "not found" in miss.detail

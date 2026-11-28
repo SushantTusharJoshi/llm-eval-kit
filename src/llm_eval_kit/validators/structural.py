@@ -1,14 +1,18 @@
 """Structural validators for LLM outputs."""
 
 import json
-import re
 from dataclasses import dataclass
+
+import regex
 
 from llm_eval_kit.config import ValidatorConfig
 
-# Python's re module has no timeout, so the output a pattern runs over is capped
-# instead. Patterns themselves are length-limited and compiled at load time.
+# User patterns run through the third-party `regex` module, which (unlike `re`)
+# takes a timeout, so a catastrophic pattern fails the check instead of hanging.
+# Patterns are also length-limited and compiled at load time, and the output a
+# pattern runs over is capped.
 MAX_REGEX_INPUT_CHARS = 100_000
+REGEX_TIMEOUT_S = 1.0
 
 
 @dataclass
@@ -91,7 +95,12 @@ def validate_regex(text: str, config: ValidatorConfig) -> ValidationResult:
             detail=f"Output too long for regex check ({len(text)} > {MAX_REGEX_INPUT_CHARS} chars)",
         )
 
-    match = re.search(config.pattern, text)
+    try:
+        match = regex.search(config.pattern, text, timeout=REGEX_TIMEOUT_S)
+    except TimeoutError:
+        # A timeout is never a pass, inverted or not.
+        return ValidationResult(passed=False, detail=f"regex timed out after {REGEX_TIMEOUT_S:g} s")
+
     if match:
         passed = True
         detail = f"Pattern '{config.pattern}' matched"
