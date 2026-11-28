@@ -84,7 +84,7 @@ def build_parser() -> argparse.ArgumentParser:
     limits.add_argument("--max-calls", type=int, help="Stop after this many live model calls")
     limits.add_argument("--max-run-tokens", type=int, help="Stop after this many live tokens (in + out)")
     limits.add_argument("--timeout", type=float, default=60.0, help="Per-request timeout in seconds (default: 60)")
-    limits.add_argument("--retries", type=int, default=2, help="Retries for throttles/timeouts/5xx (default: 2)")
+    limits.add_argument("--retries", type=int, default=4, help="Retries for throttles/timeouts/5xx; a Retry-After header is honoured up to 60 s (default: 4)")
     return parser
 
 

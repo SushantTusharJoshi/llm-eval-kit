@@ -33,10 +33,12 @@ class Completion:
 class ProviderError(Exception):
     """A provider call failed. ``retryable`` marks throttles, timeouts and 5xx."""
 
-    def __init__(self, message: str, *, retryable: bool = False, status: int | None = None):
+    def __init__(self, message: str, *, retryable: bool = False, status: int | None = None,
+                 retry_after: float | None = None):
         super().__init__(message)
         self.retryable = retryable
         self.status = status
+        self.retry_after = retry_after  # seconds the provider asked us to wait, if it said
 
 
 class LLMProvider(ABC):

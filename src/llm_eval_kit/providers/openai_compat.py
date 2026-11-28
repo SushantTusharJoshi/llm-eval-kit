@@ -20,6 +20,15 @@ GROQ_DEFAULT_MODEL = "openai/gpt-oss-120b"
 _RETRYABLE_STATUS = {408, 409, 429, 500, 502, 503, 504}
 
 
+def _retry_after_seconds(headers) -> float | None:
+    """Seconds from a Retry-After header (numeric form only); None when absent or unparseable."""
+    raw = headers.get("retry-after") if headers is not None else None
+    try:
+        return max(0.0, float(raw)) if raw is not None else None
+    except (TypeError, ValueError):
+        return None
+
+
 def is_gpt_oss(model: str) -> bool:
     return "gpt-oss" in model
 
@@ -142,6 +151,7 @@ class OpenAICompatibleProvider(LLMProvider):
                 f"{self.name}: HTTP {resp.status_code}: {snippet}",
                 retryable=resp.status_code in _RETRYABLE_STATUS,
                 status=resp.status_code,
+                retry_after=_retry_after_seconds(resp.headers),
             )
         try:
             return resp.json()
