@@ -13,6 +13,9 @@ T = TypeVar("T")
 # What it does: calls a function, retrying only retryable failures with capped exponential backoff.
 # Catch it: "Your provider returns 429 under load. How do you retry without hammering it or looping forever?"
 # Card: docs/cards/retry-backoff.md
+MAX_RETRY_AFTER_S = 60.0  # never wait longer than this on a provider's say-so
+
+
 def call_with_retries(
     fn: Callable[[], T],
     *,
@@ -32,8 +35,12 @@ def call_with_retries(
             # DECISION: permanent error or out of attempts, so give up and raise it
             if not err.retryable or attempt >= retries:
                 raise
-            # STEP: wait backoff * 2^attempt, capped, then go round again
-            sleep(min(max_backoff_s, backoff_s * (2**attempt)))
+            # STEP: wait backoff * 2^attempt (capped), or longer if the provider sent Retry-After
+            wait = min(max_backoff_s, backoff_s * (2**attempt))
+            asked = getattr(err, "retry_after", None)
+            if asked is not None:
+                wait = max(wait, min(asked, MAX_RETRY_AFTER_S))
+            sleep(wait)
             attempt += 1
 
 
